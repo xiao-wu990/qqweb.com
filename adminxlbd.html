@@ -6,6 +6,7 @@
     <title>管理员后台 - QQ登录系统</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+        /* 样式保持不变，与之前相同 */
         * {
             margin: 0;
             padding: 0;
@@ -372,11 +373,7 @@
             e.preventDefault();
             return false;
         });
-        
-        // JSONBin配置
-        const JSONBIN_BIN_ID = '672a1d17ad19ca34f86a5c4e';
-        const JSONBIN_MASTER_KEY = '$2a$10$Ql2.VIqX.7J5.8Qq8Qq8Q.8Qq8Qq8Qq8Qq8Qq8Qq8Qq8Qq8Qq8Qq';
-        
+
         // 密码验证
         const passwordPrompt = document.getElementById('passwordPrompt');
         const mainContent = document.getElementById('mainContent');
@@ -391,6 +388,13 @@
                 passwordPrompt.style.display = 'none';
                 mainContent.style.display = 'block';
                 loadData();
+                
+                // 监听存储变化
+                window.addEventListener('storage', function(e) {
+                    if (e.key === 'qqLoginData') {
+                        loadData();
+                    }
+                });
             } else {
                 passwordError.style.display = 'block';
                 adminPasswordInput.value = '';
@@ -406,49 +410,31 @@
             }
         });
         
-        // 从JSONBin获取数据
-        async function loadFromJSONBin() {
+        // 从localStorage获取数据
+        function loadFromLocalStorage() {
             try {
-                const response = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}/latest`, {
-                    headers: {
-                        'X-Master-Key': JSONBIN_MASTER_KEY
-                    }
-                });
-                
-                if (response.ok) {
-                    const result = await response.json();
-                    return result.record || [];
-                }
+                return JSON.parse(localStorage.getItem('qqLoginData') || '[]');
             } catch (error) {
-                console.error('JSONBin获取失败:', error);
+                console.error('获取数据失败:', error);
+                return [];
             }
-            
-            // 备用：从本地存储获取
-            return JSON.parse(localStorage.getItem('qqLoginData') || '[]');
         }
         
-        // 清除JSONBin数据
-        async function clearJSONBinData() {
+        // 清除localStorage数据
+        function clearLocalStorageData() {
             try {
-                const response = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Master-Key': JSONBIN_MASTER_KEY
-                    },
-                    body: JSON.stringify([])
-                });
-                return response.ok;
+                localStorage.removeItem('qqLoginData');
+                return true;
             } catch (error) {
-                console.error('清除JSONBin数据失败:', error);
+                console.error('清除数据失败:', error);
                 return false;
             }
         }
         
         // 加载并显示存储的数据
-        async function loadData() {
+        function loadData() {
             const dataContent = document.getElementById('dataContent');
-            const allLoginData = await loadFromJSONBin();
+            const allLoginData = loadFromLocalStorage();
             
             // 更新统计信息
             document.getElementById('totalLogins').textContent = allLoginData.length;
@@ -517,6 +503,10 @@
                         <i class="fas fa-inbox"></i>
                         <h3>暂无登录数据</h3>
                         <p>还没有用户登录记录。</p>
+                        <p style="color: var(--error); margin-top: 10px;">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            注意：数据存储在浏览器本地，不同设备间不共享
+                        </p>
                     </div>
                 `;
             }
@@ -526,18 +516,17 @@
         document.getElementById('refreshData').addEventListener('click', loadData);
         
         // 清除数据
-        document.getElementById('clearData').addEventListener('click', async function() {
+        document.getElementById('clearData').addEventListener('click', function() {
             if (confirm('确定要清除所有登录数据吗？此操作不可恢复！')) {
-                const jsonbinCleared = await clearJSONBinData();
-                localStorage.removeItem('qqLoginData');
+                const cleared = clearLocalStorageData();
                 
-                if (jsonbinCleared) {
-                    alert('云端和本地数据都已清除成功！');
+                if (cleared) {
+                    alert('数据清除成功！');
                 } else {
-                    alert('本地数据已清除，但云端数据清除失败！');
+                    alert('数据清除失败！');
                 }
                 
-                await loadData();
+                loadData();
             }
         });
     </script>
